@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Product, Store, Transaction, CartItem } from '@/types';
 
 export function formatCurrency(amount: number): string {

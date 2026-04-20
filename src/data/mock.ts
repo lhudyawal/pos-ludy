@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Product, Store, Transaction, SalesTarget, Payroll, DailyActivity, DashboardStats } from '@/types';
 
 export const mockUsers: any[] = [

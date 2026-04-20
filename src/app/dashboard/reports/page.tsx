@@ -1,6 +1,5 @@
 'use client';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from 'react';
 import { FileText, DollarSign, TrendingUp, Download, Loader2, Calendar } from 'lucide-react';
 import {

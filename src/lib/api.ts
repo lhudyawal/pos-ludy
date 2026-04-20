@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Product, Store, Transaction } from '@/types';
 
 const API_BASE = '/api';

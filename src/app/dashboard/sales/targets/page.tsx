@@ -1,6 +1,5 @@
 'use client';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from 'react';
 import { Users, Target, Plus, Edit, Loader2 } from 'lucide-react';
 import {
