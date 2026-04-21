@@ -21,7 +21,7 @@ async function getUserRole(): Promise<{ role: string; clerkId: string | null; us
 
 export async function GET(request: NextRequest) {
   try {
-    const { role, userId } = await getUserRole();
+    const { role, clerkId } = await getUserRole();
     const { searchParams } = new URL(request.url);
     const isActive = searchParams.get('is_active') !== 'false';
 
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
         .from('stores')
         .select('*')
         .eq('is_active', isActive)
-        .eq('created_by', userId)
+        .eq('created_by', clerkId)
         .order('lifetime_value', { ascending: false });
 
       if (error) throw error;
