@@ -143,9 +143,8 @@ async function seedSalesTargets() {
     sales_id: user.id,
     month: currentMonth,
     target_amount: 5000000,
-    target_quantity: 100,
+    deduction_rate: 10,
     actual_amount: 0,
-    actual_quantity: 0,
   }));
 
   const { error } = await supabase.from('sales_targets').upsert(targets, { onConflict: 'sales_id, month' });

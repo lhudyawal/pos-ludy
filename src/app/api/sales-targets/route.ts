@@ -78,9 +78,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { sales_id, month, target_amount, target_quantity } = body;
+    const { sales_id, month, target_amount, deduction_rate } = body;
 
-    if (!sales_id || !month || !target_amount || !target_quantity) {
+    if (!sales_id || !month || !target_amount) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
         .from('sales_targets')
         .update({
           target_amount,
-          target_quantity,
+          deduction_rate: deduction_rate || 10,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existing.id)
@@ -113,9 +113,8 @@ export async function POST(request: NextRequest) {
         sales_id,
         month,
         target_amount,
-        target_quantity,
+        deduction_rate: deduction_rate || 10,
         actual_amount: 0,
-        actual_quantity: 0,
       })
       .select()
       .single();

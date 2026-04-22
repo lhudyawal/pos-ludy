@@ -52,7 +52,7 @@ export default function SalesTargetsPage() {
     sales_id: '',
     month: new Date().toISOString().slice(0, 7),
     target_amount: '',
-    target_quantity: '',
+    deduction_rate: '10',
   });
 
   const getSalesPerformance = (salesId: string, month: string) => {
@@ -63,16 +63,12 @@ export default function SalesTargetsPage() {
     });
     
     const totalAmount = salesTransactions.reduce((sum, t) => sum + t.total, 0);
-    const totalQuantity = salesTransactions.reduce((sum, t) => {
-      const items = t.items || t.transaction_items || [];
-      return sum + items.reduce((itemSum: number, item: any) => itemSum + (item.quantity || 0), 0);
-    }, 0);
     
-    return { totalAmount, totalQuantity };
+    return { totalAmount };
   };
 
   const handleAddTarget = async () => {
-    if (!newTarget.sales_id || !newTarget.target_amount || !newTarget.target_quantity) {
+    if (!newTarget.sales_id || !newTarget.target_amount) {
       toast.error('Data tidak lengkap');
       return;
     }
@@ -83,14 +79,14 @@ export default function SalesTargetsPage() {
         sales_id: newTarget.sales_id,
         month: newTarget.month,
         target_amount: parseInt(newTarget.target_amount),
-        target_quantity: parseInt(newTarget.target_quantity),
+        deduction_rate: parseFloat(newTarget.deduction_rate) || 10,
       });
       setIsAddOpen(false);
       setNewTarget({
         sales_id: '',
         month: new Date().toISOString().slice(0, 7),
         target_amount: '',
-        target_quantity: '',
+        deduction_rate: '10',
       });
       toast.success('Target berhasil ditambahkan');
     } catch (error) {
@@ -181,20 +177,21 @@ export default function SalesTargetsPage() {
                     <Input 
                       id="targetAmount" 
                       type="number" 
-                      placeholder="10000000"
+                      placeholder="15000000"
                       value={newTarget.target_amount}
                       onChange={(e) => setNewTarget({ ...newTarget, target_amount: e.target.value })}
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="targetQuantity">Target Kuantitas (pcs)</Label>
+                    <Label htmlFor="deductionRate">Potongan Target (%)</Label>
                     <Input 
-                      id="targetQuantity" 
+                      id="deductionRate" 
                       type="number" 
-                      placeholder="500"
-                      value={newTarget.target_quantity}
-                      onChange={(e) => setNewTarget({ ...newTarget, target_quantity: e.target.value })}
+                      placeholder="20"
+                      value={newTarget.deduction_rate}
+                      onChange={(e) => setNewTarget({ ...newTarget, deduction_rate: e.target.value })}
                     />
+                    <p className="text-xs text-gray-500">Persentase potongan jika target tidak terpenuhi</p>
                   </div>
                 </div>
               </div>
@@ -234,12 +231,9 @@ export default function SalesTargetsPage() {
         <div className="grid gap-4 md:grid-cols-2">
           {allSalesWithTargets.map((salesData) => {
             const targetAmount = salesData.target?.target_amount || 0;
-            const targetQuantity = salesData.target?.target_quantity || 0;
+            const deductionRate = salesData.target?.deduction_rate || 10;
             const amountPercentage = targetAmount > 0
               ? Math.min((salesData.performance.totalAmount / targetAmount) * 100, 100)
-              : 0;
-            const quantityPercentage = targetQuantity > 0
-              ? Math.min((salesData.performance.totalQuantity / targetQuantity) * 100, 100)
               : 0;
 
             return (
@@ -277,36 +271,20 @@ export default function SalesTargetsPage() {
                     </p>
                   </div>
 
-                  {/* Quantity target */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Target Kuantitas</span>
-                      <span className="text-sm text-gray-500">
-                        {salesData.performance.totalQuantity} / {targetQuantity} pcs
-                      </span>
-                    </div>
-                    <Progress value={quantityPercentage} className="h-2" />
-                    <p className="text-xs text-gray-500 mt-1">
-                      {quantityPercentage.toFixed(1)}% tercapai
-                    </p>
+                  {/* Deduction info */}
+                  <div className="flex items-center justify-between py-2 px-3 bg-orange-50 rounded-lg">
+                    <span className="text-sm font-medium text-orange-800">Potongan Target</span>
+                    <span className="text-sm font-semibold text-orange-700">{deductionRate}%</span>
                   </div>
 
                   {/* Gap analysis */}
                   {salesData.target && (
                     <div className="pt-4 border-t">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Kurang Nominal</p>
-                          <p className="text-lg font-semibold text-red-600">
-                            {formatCurrency(Math.max(0, targetAmount - salesData.performance.totalAmount))}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Kurang Kuantitas</p>
-                          <p className="text-lg font-semibold text-red-600">
-                            {Math.max(0, targetQuantity - salesData.performance.totalQuantity)} pcs
-                          </p>
-                        </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Kurang Nominal</p>
+                        <p className="text-lg font-semibold text-red-600">
+                          {formatCurrency(Math.max(0, targetAmount - salesData.performance.totalAmount))}
+                        </p>
                       </div>
                     </div>
                   )}

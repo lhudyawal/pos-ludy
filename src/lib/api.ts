@@ -28,8 +28,14 @@ async function fetchAPI<T>(
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(error.error || 'Request failed');
+    let errorMessage = 'Request failed';
+    try {
+      const error = await response.json();
+      errorMessage = error?.error || error?.message || errorMessage;
+    } catch {
+      errorMessage = response.statusText || errorMessage;
+    }
+    throw new Error(errorMessage);
   }
 
   return response.json();
@@ -102,7 +108,7 @@ export const api = {
   salesTargets: {
     getAll: (params?: { month?: string; sales_id?: string }) => 
       fetchAPI<any[]>('/sales-targets', { params }),
-    create: (data: { sales_id: string; month: string; target_amount: number; target_quantity: number }) => 
+    create: (data: { sales_id: string; month: string; target_amount: number; deduction_rate?: number }) => 
       fetchAPI<any>('/sales-targets', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: any) => 
       fetchAPI<any>(`/sales-targets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -124,10 +130,10 @@ export const api = {
       try {
         return await fetchAPI<any>(`/salary/settings?sales_id=${salesId}`);
       } catch {
-        return { base_salary: 2200000, commission_rate: 10 };
+        return { base_salary: 2200000 };
       }
     },
-    updateSettings: (salesId: string, data: { base_salary?: number; commission_rate?: number }) => 
+    updateSettings: (salesId: string, data: { base_salary?: number }) => 
       fetchAPI<any>(`/salary/settings`, { method: 'PUT', body: JSON.stringify({ sales_id: salesId, ...data }) }),
   },
 

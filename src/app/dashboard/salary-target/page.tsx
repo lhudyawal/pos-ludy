@@ -35,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useSales, useUserRole } from '@/hooks/useApi';
+import { useSales, useUserRole, useSalesTargets } from '@/hooks/useApi';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/converters';
 import { toast } from 'sonner';
@@ -43,21 +43,62 @@ import { toast } from 'sonner';
 export default function SalaryTargetPage() {
   const { sales, loading: salesLoading, refetch } = useSales();
   const { isAdmin, loading: roleLoading } = useUserRole();
+  const { targets } = useSalesTargets();
   const [selectedSales, setSelectedSales] = useState<string>('');
+  const [salesSettingsMap, setSalesSettingsMap] = useState<Record<string, { base_salary: number; target_amount: number; deduction_rate: number }>>({});
   const [salarySettings, setSalarySettings] = useState({
-    base_salary: 2200000,
-    commission_rate: 10,
-    target_amount: 10000000,
-    target_quantity: 100,
+    base_salary: 0,
+    target_amount: 0,
+    deduction_rate: 10,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(false);
 
   useEffect(() => {
     if (!roleLoading && !isAdmin) {
       toast.error('Akses ditolak. Hanya admin yang dapat mengakses halaman ini.');
     }
   }, [roleLoading, isAdmin]);
+
+  useEffect(() => {
+    const loadAllSettings = async () => {
+      if (sales.length === 0) return;
+      setIsLoadingSettings(true);
+      
+      const settingsMap: Record<string, { base_salary: number; target_amount: number; deduction_rate: number }> = {};
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      
+      for (const s of sales) {
+        try {
+          const userSettings = await api.salary.getSettings(s.id);
+          const salesTarget = targets.find((t: any) => t.sales_id === s.id && t.month === currentMonth);
+          
+          settingsMap[s.id] = {
+            base_salary: userSettings?.base_salary || 2200000,
+            target_amount: salesTarget?.target_amount || 10000000,
+            deduction_rate: salesTarget?.deduction_rate || 10,
+          };
+        } catch {
+          settingsMap[s.id] = {
+            base_salary: 2200000,
+            target_amount: 10000000,
+            deduction_rate: 10,
+          };
+        }
+      }
+      
+      setSalesSettingsMap(settingsMap);
+      setIsLoadingSettings(false);
+    };
+    
+    loadAllSettings();
+  }, [sales, targets]);
+
+  const getTargetForSales = (salesId: string) => {
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    return targets.find((t: any) => t.sales_id === salesId && t.month === currentMonth);
+  };
 
   const handleOpenDialog = async (salesId: string) => {
     setSelectedSales(salesId);
@@ -72,16 +113,14 @@ export default function SalaryTargetPage() {
       
       setSalarySettings({
         base_salary: settings?.base_salary || 2200000,
-        commission_rate: settings?.commission_rate || 10,
         target_amount: currentTarget?.target_amount || 10000000,
-        target_quantity: currentTarget?.target_quantity || 100,
+        deduction_rate: currentTarget?.deduction_rate || 10,
       });
     } catch (error) {
       setSalarySettings({
         base_salary: 2200000,
-        commission_rate: 10,
         target_amount: 10000000,
-        target_quantity: 100,
+        deduction_rate: 10,
       });
     }
   };
@@ -95,14 +134,13 @@ export default function SalaryTargetPage() {
       
       await api.salary.updateSettings(selectedSales, {
         base_salary: salarySettings.base_salary,
-        commission_rate: salarySettings.commission_rate,
       });
       
       await api.salesTargets.create({
         sales_id: selectedSales,
         month: currentMonth,
         target_amount: salarySettings.target_amount,
-        target_quantity: salarySettings.target_quantity,
+        deduction_rate: salarySettings.deduction_rate,
       });
       
       toast.success('Gaji dan target berhasil disimpan');
@@ -118,7 +156,7 @@ export default function SalaryTargetPage() {
 
   const calculateDeduction = (actual: number) => {
     const shortfall = salarySettings.target_amount - actual;
-    return shortfall > 0 ? Math.floor(shortfall * 0.1) : 0;
+    return shortfall > 0 ? Math.floor(shortfall * (salarySettings.deduction_rate / 100)) : 0;
   };
 
   if (roleLoading || !isAdmin) {
@@ -149,10 +187,9 @@ export default function SalaryTargetPage() {
             <div>
               <h3 className="font-medium text-blue-900">Informasi Perhitungan Gaji</h3>
               <ul className="mt-2 text-sm text-blue-800 space-y-1">
-                <li>• Gaji Pokok: {formatCurrency(salarySettings.base_salary)}/bulan</li>
-                <li>• Bonus: {salarySettings.commission_rate}% dari penjualan di atas target</li>
-                <li>• Potongan: 10% dari shortfall jika target tidak terpenuhi</li>
-                <li>• Target Awal: {formatCurrency(salarySettings.target_amount)}/bulan</li>
+                <li>• Gaji Pokok: Dari data sales</li>
+                <li>• Target: Sesuai target yang ditetapkan per sales</li>
+                <li>• Potongan: Persentase dari shortfall jika target tidak terpenuhi</li>
               </ul>
             </div>
           </div>
@@ -161,6 +198,10 @@ export default function SalaryTargetPage() {
 
       {/* Sales List */}
       {salesLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
+        </div>
+      ) : isLoadingSettings ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
         </div>
@@ -192,19 +233,21 @@ export default function SalaryTargetPage() {
                 <div className="space-y-3">
                   <div className="flex justify-between items-center py-2 border-b">
                     <span className="text-sm text-gray-500">Gaji Pokok</span>
-                    <span className="font-medium">{formatCurrency(salarySettings.base_salary)}</span>
+                    <span className="font-medium">
+                      {formatCurrency(salesSettingsMap[salesPerson.id]?.base_salary || 2200000)}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b">
                     <span className="text-sm text-gray-500">Target Penjualan</span>
-                    <span className="font-medium">{formatCurrency(salarySettings.target_amount)}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b">
-                    <span className="text-sm text-gray-500">Target Quantity</span>
-                    <span className="font-medium">{salarySettings.target_quantity} transaksi</span>
+                    <span className="font-medium">
+                      {formatCurrency(salesSettingsMap[salesPerson.id]?.target_amount || getTargetForSales(salesPerson.id)?.target_amount || 10000000)}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center py-2">
-                    <span className="text-sm text-gray-500">Komisi</span>
-                    <span className="font-medium">{salarySettings.commission_rate}%</span>
+                    <span className="text-sm text-gray-500">Potongan Target</span>
+                    <span className="font-medium">
+                      {salesSettingsMap[salesPerson.id]?.deduction_rate || getTargetForSales(salesPerson.id)?.deduction_rate || 10}%
+                    </span>
                   </div>
                 </div>
                 
@@ -261,31 +304,17 @@ export default function SalaryTargetPage() {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="target_quantity">Target Jumlah Transaksi</Label>
+              <Label htmlFor="deduction_rate">Potongan Target (%)</Label>
               <Input
-                id="target_quantity"
+                id="deduction_rate"
                 type="number"
-                value={salarySettings.target_quantity}
+                value={salarySettings.deduction_rate}
                 onChange={(e) => setSalarySettings({
                   ...salarySettings,
-                  target_quantity: parseInt(e.target.value) || 0
+                  deduction_rate: parseFloat(e.target.value) || 0
                 })}
               />
-              <p className="text-xs text-gray-500">Target jumlah transaksi per bulan</p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="commission_rate">Rate Komisi (%)</Label>
-              <Input
-                id="commission_rate"
-                type="number"
-                value={salarySettings.commission_rate}
-                onChange={(e) => setSalarySettings({
-                  ...salarySettings,
-                  commission_rate: parseInt(e.target.value) || 0
-                })}
-              />
-              <p className="text-xs text-gray-500">Persentase bonus dari penjualan di atas target</p>
+              <p className="text-xs text-gray-500">Persentase potongan jika target tidak terpenuhi (default: 10%)</p>
             </div>
 
             {/* Preview */}
@@ -311,6 +340,10 @@ export default function SalaryTargetPage() {
                   <span className="font-medium">
                     {formatCurrency(salarySettings.base_salary - calculateDeduction(salarySettings.target_amount - 1000000))}
                   </span>
+                </div>
+                <div className="flex justify-between text-orange-600">
+                  <span>Potongan:</span>
+                  <span className="font-medium">{salarySettings.deduction_rate}%</span>
                 </div>
               </div>
             </div>

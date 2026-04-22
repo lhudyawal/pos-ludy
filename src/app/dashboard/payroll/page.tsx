@@ -33,8 +33,8 @@ import { toast } from 'sonner';
 
 interface Settings {
   base_salary: number;
-  commission_rate: number;
   target_amount: number;
+  deduction_rate: number;
   actual_amount: number;
 }
 
@@ -56,12 +56,12 @@ export default function PayrollPage() {
           const target = targets.find((t: any) => t.sales_id === s.id);
           settings[s.id] = {
             base_salary: data?.base_salary || 2200000,
-            commission_rate: data?.commission_rate || 10,
             target_amount: target?.target_amount || 10000000,
+            deduction_rate: target?.deduction_rate || 10,
             actual_amount: target?.actual_amount || 0,
           };
         } catch {
-          settings[s.id] = { base_salary: 2200000, commission_rate: 10, target_amount: 10000000, actual_amount: 0 };
+          settings[s.id] = { base_salary: 2200000, target_amount: 10000000, deduction_rate: 10, actual_amount: 0 };
         }
       }
       setSalesSettings(settings);
@@ -70,25 +70,22 @@ export default function PayrollPage() {
   }, [sales, targets]);
 
   const calculatePayroll = (salesId: string) => {
-    const settings = salesSettings[salesId] || { base_salary: 2200000, commission_rate: 10, target_amount: 10000000, actual_amount: 0 };
+    const settings = salesSettings[salesId] || { base_salary: 2200000, target_amount: 10000000, deduction_rate: 10, actual_amount: 0 };
     
     const totalSales = settings.actual_amount;
     const target = settings.target_amount;
     const targetAchieved = totalSales >= target;
-    const commission = targetAchieved ? Math.floor(totalSales * (settings.commission_rate / 100)) : 0;
     const shortfall = target > totalSales ? target - totalSales : 0;
-    const deduction = !targetAchieved && shortfall > 0 ? Math.floor(shortfall * 0.1) : 0;
-    const totalPay = settings.base_salary + commission - deduction;
+    const deduction = !targetAchieved && shortfall > 0 ? Math.floor(shortfall * (settings.deduction_rate / 100)) : 0;
+    const totalPay = settings.base_salary - deduction;
 
     return {
       baseSalary: settings.base_salary,
-      commissionRate: settings.commission_rate,
       totalSales,
       target,
       targetAchieved,
       shortfall,
       deduction,
-      commission,
       totalPay,
     };
   };
@@ -101,10 +98,8 @@ export default function PayrollPage() {
           sales_id: salesPerson.id,
           month: selectedMonth,
           base_salary: calc.baseSalary,
-          commission_rate: calc.commissionRate,
           total_sales: calc.totalSales,
           target_achieved: calc.targetAchieved,
-          commission: calc.commission,
           total_pay: calc.totalPay,
         });
       } catch (err) {
@@ -137,7 +132,7 @@ export default function PayrollPage() {
   });
 
   const totalPayroll = allPayrolls.reduce((sum, p) => sum + p.totalPay, 0);
-  const totalCommission = allPayrolls.reduce((sum, p) => sum + p.commission, 0);
+  const totalDeduction = allPayrolls.reduce((sum, p) => sum + p.deduction, 0);
   const paidCount = payrolls.filter((p: any) => p.is_paid).length;
 
   const monthLabel = new Date(selectedMonth + '-01').toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
@@ -190,13 +185,13 @@ export default function PayrollPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Komisi</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Potongan</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalCommission)}</div>
+            <div className="text-2xl font-bold text-red-600">{formatCurrency(totalDeduction)}</div>
             <p className="text-xs text-muted-foreground">
-              {allPayrolls.filter((p) => p.targetAchieved).length} sales dapat komisi
+              {allPayrolls.filter((p) => !p.targetAchieved).length} sales tidak memenuhi target
             </p>
           </CardContent>
         </Card>
@@ -258,7 +253,7 @@ export default function PayrollPage() {
                     </Badge>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     <div>
                       <p className="text-sm text-gray-500">Gaji Pokok</p>
                       <p className="text-lg font-semibold">{formatCurrency(payrollData.baseSalary)}</p>
@@ -268,20 +263,14 @@ export default function PayrollPage() {
                       <p className="text-lg font-semibold">{formatCurrency(payrollData.target)}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500">Komisi ({payrollData.commissionRate}%)</p>
-                      <p className="text-lg font-semibold text-green-600">
-                        {formatCurrency(payrollData.commission)}
-                      </p>
+                      <p className="text-sm text-gray-500">Total Penjualan</p>
+                      <p className="text-lg font-semibold">{formatCurrency(payrollData.totalSales)}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500">Potongan (10%)</p>
+                      <p className="text-sm text-gray-500">Potongan Target</p>
                       <p className="text-lg font-semibold text-red-600">
                         -{formatCurrency(payrollData.deduction)}
                       </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Total Penjualan</p>
-                      <p className="text-lg font-semibold">{formatCurrency(payrollData.totalSales)}</p>
                     </div>
                   </div>
 
@@ -319,36 +308,36 @@ export default function PayrollPage() {
         </CardContent>
       </Card>
 
-      {/* Commission calculation info */}
+      {/* Deduction calculation info */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calculator className="w-5 h-5" />
-            Informasi Perhitungan Komisi
+            Informasi Perhitungan Potongan
           </CardTitle>
           <CardDescription>
-            Parameter komisi yang digunakan
+            Parameter potongan target yang digunakan
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="font-semibold text-blue-900 mb-2">Parameter Komisi</h4>
+              <h4 className="font-semibold text-blue-900 mb-2">Parameter Potongan</h4>
               <ul className="space-y-2 text-sm text-blue-800">
-                <li>• Rate komisi: 2% dari total penjualan</li>
-                <li>• Syarat: Target bulanan harus tercapai</li>
-                <li>• Target: Rp10.000.000/bulan</li>
-                <li>• Periode: Per bulan (dihitung otomatis)</li>
+                <li>• Target: Penjualan bulanan yang harus dicapai</li>
+                <li>• Potongan: Persentase dari shortfall jika target tidak terpenuhi</li>
+                <li>• Default: 10% dari shortfall</li>
+                <li>• Dapat dikonfigurasi per sales</li>
               </ul>
             </div>
             <div className="p-4 bg-green-50 rounded-lg border border-green-200">
               <h4 className="font-semibold text-green-900 mb-2">Contoh Perhitungan</h4>
               <ul className="space-y-2 text-sm text-green-800">
-                <li>• Jika penjualan = Rp15.000.000 (target tercapai)</li>
-                <li>• Komisi = 2% × Rp15.000.000 = Rp300.000</li>
-                <li>• Total = Gaji Pokok + Tunjangan + Komisi</li>
-                <li>• Total = Rp2.200.000 + Rp500.000 + Rp300.000</li>
-                <li>• Total = Rp3.000.000</li>
+                <li>• Target: Rp15.000.000</li>
+                <li>• Penjualan: Rp12.000.000</li>
+                <li>• Shortfall: Rp3.000.000</li>
+                <li>• Potongan (20%): Rp600.000</li>
+                <li>• Total Gaji: Gaji Pokok - Potongan</li>
               </ul>
             </div>
           </div>
@@ -374,7 +363,6 @@ export default function PayrollPage() {
                   <TableHead>Gaji Pokok</TableHead>
                   <TableHead>Target</TableHead>
                   <TableHead>Penjualan</TableHead>
-                  <TableHead>Komisi</TableHead>
                   <TableHead>Potongan</TableHead>
                   <TableHead>Total Gaji</TableHead>
                   <TableHead>Status</TableHead>
@@ -387,11 +375,8 @@ export default function PayrollPage() {
                     <TableCell>{formatCurrency(payrollData.baseSalary)}</TableCell>
                     <TableCell>{formatCurrency(payrollData.target)}</TableCell>
                     <TableCell>{formatCurrency(payrollData.totalSales)}</TableCell>
-                    <TableCell className="text-green-600 font-medium">
-                      {formatCurrency(payrollData.commission)}
-                    </TableCell>
                     <TableCell className="text-red-600">-{formatCurrency(payrollData.deduction)}</TableCell>
-                    <TableCell className="font-bold text-red-600">
+                    <TableCell className="font-bold">
                       {formatCurrency(payrollData.totalPay)}
                     </TableCell>
                     <TableCell>

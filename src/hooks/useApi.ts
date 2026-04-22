@@ -216,7 +216,7 @@ export function useSalesTargets(params?: { month?: string; sales_id?: string }) 
     fetchTargets();
   }, [fetchTargets]);
 
-  const createTarget = async (data: { sales_id: string; month: string; target_amount: number; target_quantity: number }) => {
+  const createTarget = async (data: { sales_id: string; month: string; target_amount: number; deduction_rate?: number }) => {
     try {
       await api.salesTargets.create(data);
       await fetchTargets();

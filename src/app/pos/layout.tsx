@@ -23,11 +23,14 @@ export default function POSLayout({
   const [salaryInfo, setSalaryInfo] = useState({ base_salary: 2200000, target_amount: 10000000, actual_amount: 0, commission_rate: 10 });
 
   useEffect(() => {
+    let cancelled = false;
     const fetchSalaryInfo = async () => {
-      if (!currentUser?.id) return;
+      if (!currentUser?.id || isAdmin) return;
       try {
         const settings = await api.salary.getSettings(currentUser.id);
+        if (cancelled) return;
         const targets = await api.salesTargets.getAll({ sales_id: currentUser.id });
+        if (cancelled) return;
         const currentMonth = new Date().toISOString().slice(0, 7);
         const target = targets.find((t: any) => t.month === currentMonth);
         setSalaryInfo({
@@ -37,13 +40,12 @@ export default function POSLayout({
           actual_amount: target?.actual_amount || 0,
         });
       } catch (e) {
-        console.error('Failed to fetch salary info', e);
+        if (!cancelled) console.error('Failed to fetch salary info', e);
       }
     };
-    if (currentUser?.id && !isAdmin) {
-      fetchSalaryInfo();
-    }
-  }, [currentUser, isAdmin]);
+    fetchSalaryInfo();
+    return () => { cancelled = true; };
+  }, [currentUser?.id, isAdmin]);
 
   if (!userLoaded || roleLoading) {
     return (

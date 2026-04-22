@@ -116,17 +116,14 @@ export interface SalesTarget {
   salesName?: string;
   month: string;
   target_amount: number;
-  target_quantity: number;
+  deduction_rate?: number;
   actual_amount: number;
-  actual_quantity: number;
   created_at?: string;
   updated_at?: string;
   // Legacy fields
   salesId?: string;
   targetAmount?: number;
-  targetQuantity?: number;
   actualAmount?: number;
-  actualQuantity?: number;
 }
 
 // Payroll types

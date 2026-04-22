@@ -33,8 +33,7 @@ export async function GET(request: NextRequest) {
         name,
         email,
         base_salary,
-        commission_rate,
-        sales_targets!left(id, month, target_amount, actual_amount, target_quantity, actual_quantity)
+        sales_targets!left(id, month, target_amount, actual_amount, deduction_rate)
       `)
       .eq('role', 'sales')
       .eq('is_active', true);
@@ -51,18 +50,16 @@ export async function GET(request: NextRequest) {
         const target = sales.sales_targets?.[0];
         const targetAmount = target?.target_amount || 10000000;
         const actualAmount = target?.actual_amount || 0;
+        const deductionRate = target?.deduction_rate || 10;
         const targetAchieved = actualAmount >= targetAmount;
         
-        // Calculate deduction: 10% of shortfall
+        // Calculate deduction: deduction_rate% of shortfall
         const shortfall = targetAmount - actualAmount;
-        const deduction = !targetAchieved && shortfall > 0 ? Math.floor(shortfall * 0.1) : 0;
+        const deduction = !targetAchieved && shortfall > 0 ? Math.floor(shortfall * (deductionRate / 100)) : 0;
         
-        // Calculate commission (2% of sales above target)
-        const commission = targetAchieved ? Math.floor(actualAmount * 0.02) : 0;
-        
-        // Total pay: base salary + commission - deduction
+        // Total pay: base salary - deduction
         const baseSalary = sales.base_salary || 2200000;
-        const totalPay = baseSalary + commission - deduction;
+        const totalPay = baseSalary - deduction;
 
         return {
           id: target?.id || null,
@@ -71,14 +68,13 @@ export async function GET(request: NextRequest) {
           sales_email: sales.email,
           month,
           base_salary: baseSalary,
-          commission_rate: sales.commission_rate || 10,
+          deduction_rate: deductionRate,
           total_sales: actualAmount,
           target_amount: targetAmount,
           actual_amount: actualAmount,
           target_achieved: targetAchieved,
           shortfall: shortfall > 0 ? shortfall : 0,
           deduction,
-          commission,
           total_pay: totalPay,
           is_paid: target?.id ? false : false,
         };
@@ -100,7 +96,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { sales_id, month, base_salary, commission_rate, target_amount, target_quantity } = body;
+    const { sales_id, month, base_salary, target_amount, deduction_rate } = body;
 
     if (!sales_id || !month) {
       return NextResponse.json({ error: 'sales_id and month are required' }, { status: 400 });
@@ -111,7 +107,6 @@ export async function POST(request: NextRequest) {
       .from('users')
       .update({
         base_salary: base_salary || 2200000,
-        commission_rate: commission_rate || 10,
         updated_at: new Date().toISOString(),
       })
       .eq('id', sales_id);
@@ -119,16 +114,15 @@ export async function POST(request: NextRequest) {
     if (userError) throw userError;
 
     // Upsert sales target
-    if (target_amount !== undefined || target_quantity !== undefined) {
+    if (target_amount !== undefined) {
       const { error: targetError } = await supabaseAdmin
         .from('sales_targets')
         .upsert({
           sales_id,
           month,
           target_amount: target_amount || 10000000,
-          target_quantity: target_quantity || 100,
+          deduction_rate: deduction_rate || 10,
           actual_amount: 0,
-          actual_quantity: 0,
         }, { onConflict: 'sales_id,month' });
 
       if (targetError) throw targetError;

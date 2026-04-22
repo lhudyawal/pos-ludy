@@ -7,13 +7,14 @@ async function isAdmin(): Promise<boolean> {
     const { userId } = await auth();
     if (!userId) return false;
 
-    const { data: user } = await supabaseAdmin
+    const { data: user, error } = await supabaseAdmin
       .from('users')
       .select('role')
       .eq('clerk_id', userId)
       .single();
 
-    return user?.role === 'admin';
+    if (error || !user) return false;
+    return user.role === 'admin';
   } catch {
     return false;
   }
